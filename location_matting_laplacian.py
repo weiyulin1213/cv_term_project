@@ -579,7 +579,11 @@ def stylize(content_img, style_imgs, init_img, frame=None):
     
     # denoising loss
     L_tv = sum_total_variation_losses(sess, net, init_img)
-    
+
+	# laplacian loss
+    _,h,w,d=content_img.shape
+    L_lap=laplacian_loss(sess,w,h,net)
+	
     # loss weights
     alpha = args.content_weight
     beta  = args.style_weight
@@ -589,6 +593,7 @@ def stylize(content_img, style_imgs, init_img, frame=None):
     L_total  = alpha * L_content
     L_total += beta  * L_style
     L_total += theta * L_tv
+    L_total += 100   * L_lap
     
     # video temporal loss
     if args.video and frame > 1:
@@ -614,20 +619,20 @@ def stylize(content_img, style_imgs, init_img, frame=None):
     else:
       write_image_output(output_img, content_img, style_imgs, init_img)
 
-def laplacian_loss():
+def laplacian_loss(sess,w,h,net):
 	V=sess.run(net['input'])
 	v=[]
-	v[0]=V[0,:,:,0].reshape([w*h,1])
-	v[1]=V[0,:,:,1].reshape([w*h,1])
-	v[2]=V[0,:,:,2].reshape([w*h,1])
-	tmp_l=tf.placeholder(tf.float32, shape=(1,h*w))
-	np_tmp_l=np.empty([1,h*w])
-	result=0;
+	v.append(V[0,:,:,0].reshape([w*h,1]))
+	v.append(V[0,:,:,1].reshape([w*h,1]))
+	v.append(V[0,:,:,2].reshape([w*h,1]))
+	tmp_l=tf.Variable(np.array([1,w*h], dtype=np.float32))
+	#np_tmp_l=np.empty([1,h*w])
+	result=0.
 	for d in range(3):
 		for col_num in range(h*w):
-			np_tmp_l[0,col_num]=tf.matmul(tf.convert_to_tensor(v[d].T),tf.convert_to_tensor(lx.laplacian_col(col_num)))
-		result+=tf.matmul(tmp_l, tf.convert_to_tensor(v[d]))
-	sess.run(result, feed_dict={tmp_l: np_tmp_l})
+			tmp_l[0,col_num].assign(tf.matmul(tf.matmul(tf.convert_to_tensor(v[d][col_num]),tf.convert_to_tensor(v[d].T)),tf.convert_to_tensor(lx.laplacian_col(col_num)))).eval()			
+			result += tmp_l[0,col_num]
+	#sess.run(result, feed_dict={tmp_l: np_tmp_l})
 	return result
 	  
 def minimize_with_lbfgs(sess, net, optimizer, init_img):
