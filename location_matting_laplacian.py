@@ -582,7 +582,7 @@ def stylize(content_img, style_imgs, init_img, frame=None):
 
 	# laplacian loss
     _,h,w,d=content_img.shape
-    L_lap=laplacian_loss(sess,w,h,net)
+    L_lap=laplacian_loss(sess,w,h,net,content_img)
 	
     # loss weights
     alpha = args.content_weight
@@ -619,19 +619,21 @@ def stylize(content_img, style_imgs, init_img, frame=None):
     else:
       write_image_output(output_img, content_img, style_imgs, init_img)
 
-def laplacian_loss(sess,w,h,net):
+def laplacian_loss(sess,w,h,net, content_img):
+	mean_matrix=lx.build_mean(content_img)
+	cov_matrix=lx.build_cov(content_img)
 	V=sess.run(net['input'])
 	v=[]
 	v.append(V[0,:,:,0].reshape([w*h,1]))
 	v.append(V[0,:,:,1].reshape([w*h,1]))
 	v.append(V[0,:,:,2].reshape([w*h,1]))
-	tmp_l=tf.Variable(np.array([1,w*h], dtype=np.float32))
+	#tmp_l=tf.Variable(np.array([1,w*h], dtype=np.float32))
 	#np_tmp_l=np.empty([1,h*w])
 	result=0.
 	for d in range(3):
 		for col_num in range(h*w):
-			tmp_l[0,col_num].assign(tf.matmul(tf.matmul(tf.convert_to_tensor(v[d][col_num]),tf.convert_to_tensor(v[d].T)),tf.convert_to_tensor(lx.laplacian_col(col_num)))).eval()			
-			result += tmp_l[0,col_num]
+			#result+=tf.matmul(tf.convert_to_tensor(v[d][col_num]),tf.matmul(tf.convert_to_tensor(v[d].T),tf.convert_to_tensor(lx.laplacian_col(col_num, w,h,content_img,mean_matrix,cov_matrix))))
+			result+=tf.matmul(tf.cast(v[d][col_num].reshape([ 1,1]), tf.float32),tf.matmul(tf.cast(v[d].T, tf.float32),tf.cast(lx.laplacian_col(col_num, w,h,content_img,mean_matrix,cov_matrix).reshape([ w*h,1]), tf.float32)))
 	#sess.run(result, feed_dict={tmp_l: np_tmp_l})
 	return result
 	  

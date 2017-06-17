@@ -13,14 +13,14 @@ def build_mean(content_img):
 	return mean_matrix
 			
 def build_cov(content_img):
-	h,w,d=content_img.shape
+	_,h,w,d=content_img.shape
 	cov_matrix=np.empty([h,w,3,3])
 	content_img=pad_zero(content_img)
 	for x in range(h):
 		for y in range(w):
-			sigma=np.array([content_img[x-1,y-1,:], content_img[x,y-1,:], content_img[x+1,y-1,:], \
-							content_img[x-1,y,:], content_img[x,y,:], content_img[x+1,y,:], \
-							content_img[x-1,y+1,:], content_img[x,y+1,:], content_img[x+1,y+1,:]])
+			sigma=np.array([content_img[0, x-1,y-1,:], content_img[0, x,y-1,:], content_img[0, x+1,y-1,:], \
+							content_img[0, x-1,y,:], content_img[0, x,y,:], content_img[0, x+1,y,:], \
+							content_img[0, x-1,y+1,:], content_img[0, x,y+1,:], content_img[0, x+1,y+1,:]])
 			cov_matrix[ x,y]=np.cov(sigma, bias=True, rowvar=False) / 9.0
 	return cov_matrix
 
@@ -42,7 +42,7 @@ def D(i,j,width,height,content_img,mean,cov_matrix):
 	if i==j:
 		delta = 1
 	
-	return delta - 1./Wk_size * (1+np.matmul(np.matmul((content_img[rowi,coli] -mean[rowi,coli] ).T , np.linalg.inv((cov_matrix[rowi,coli,:,:] + epsilon*np.eye(3)))) , (content_img[rowj,colj]-mean[rowi,coli])))
+	return delta - 1./Wk_size * (1+np.matmul(np.matmul((content_img[0,rowi,coli] -mean[0,rowi,coli] ).T , np.linalg.inv((cov_matrix[rowi,coli,:,:] + epsilon*np.eye(3)))) , (content_img[0,rowj,colj]-mean[0,rowi,coli])))
 
 def laplacian_col(input_col, w, h, content_img, mean_matrix, cov_matrix):
 	col=np.zeros([ w*h])
