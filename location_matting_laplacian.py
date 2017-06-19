@@ -8,9 +8,10 @@ import time
 import cv2
 import os
 
-# 66666666666666666666666
 import laplacian_matrix as lx
-
+import laplacian_matrix_v2 as lx_v2
+filename="laplacian_lion_64_64.csv"
+_lambda=10e7
 '''
   parsing and configuration
 '''
@@ -52,7 +53,7 @@ def parse_args():
     help='Image used to initialize the network. (default: %(default)s)')
   
   parser.add_argument('--max_size', type=int, 
-    default=512,
+    default=64,
     help='Maximum width or height of the input images. (default: %(default)s)')
   
   parser.add_argument('--content_weight', type=float, 
@@ -582,7 +583,8 @@ def stylize(content_img, style_imgs, init_img, frame=None):
 
 	# laplacian loss
     _,h,w,d=content_img.shape
-    L_lap=laplacian_loss(sess,w,h,net,content_img)
+    print(content_img.shape)
+    L_lap=read_laplacian_matrix(sess, net, w, h, filename)
 	
     # loss weights
     alpha = args.content_weight
@@ -593,7 +595,7 @@ def stylize(content_img, style_imgs, init_img, frame=None):
     L_total  = alpha * L_content
     L_total += beta  * L_style
     L_total += theta * L_tv
-    L_total += 100   * L_lap
+    L_total += _lambda * L_lap
     
     # video temporal loss
     if args.video and frame > 1:
@@ -619,9 +621,9 @@ def stylize(content_img, style_imgs, init_img, frame=None):
     else:
       write_image_output(output_img, content_img, style_imgs, init_img)
 
-def laplacian_loss(sess,w,h,net, content_img):
-	mean_matrix=lx.build_mean(content_img)
-	cov_matrix=lx.build_cov(content_img)
+def laplacian_loss_GG(sess,w,h,net, content_img):
+	mean_matrix=lx_v2.build_mean(content_img)
+	cov_matrix=lx_v2.build_cov(content_img)
 	V=sess.run(net['input'])
 	v=[]
 	v.append(V[0,:,:,0].reshape([w*h,1]))
@@ -633,9 +635,44 @@ def laplacian_loss(sess,w,h,net, content_img):
 	for d in range(3):
 		for col_num in range(h*w):
 			#result+=tf.matmul(tf.convert_to_tensor(v[d][col_num]),tf.matmul(tf.convert_to_tensor(v[d].T),tf.convert_to_tensor(lx.laplacian_col(col_num, w,h,content_img,mean_matrix,cov_matrix))))
-			result+=tf.matmul(tf.cast(v[d][col_num].reshape([ 1,1]), tf.float32),tf.matmul(tf.cast(v[d].T, tf.float32),tf.cast(lx.laplacian_col(col_num, w,h,content_img,mean_matrix,cov_matrix).reshape([ w*h,1]), tf.float32)))
+			result+=tf.matmul(tf.cast(v[d][col_num].reshape([ 1,1]), tf.float32),tf.matmul(tf.cast(v[d].T, tf.float32),tf.cast(lx_v2.laplacian_col(col_num, w,h,content_img,mean_matrix,cov_matrix).reshape([ w*h,1]), tf.float32)))
 	#sess.run(result, feed_dict={tmp_l: np_tmp_l})
 	return result
+
+def laplacian_loss(sess,w,h,net, content_img):
+	mean_matrix=lx_v2.build_mean(content_img)
+	cov_matrix=lx_v2.build_cov(content_img)
+	V=sess.run(net['input'])
+	v=[]
+	v.append(V[0,:,:,0].reshape([w*h,1]))
+	v.append(V[0,:,:,1].reshape([w*h,1]))
+	v.append(V[0,:,:,2].reshape([w*h,1]))
+	result=0.
+	M=lx_v2.laplacian_sparse_matrix(content_img, 0.0001, 1)
+	M_t=tf.transpose(tf.cast(M, tf.float32))
+	for d in range(3):
+		#tmp=tf.sparse_transpose((tf.sparse_tensor_dense_matmul(tf.cast(tf.sparse_transpose(M), tf.float32), tf.cast(v[d], tf.float32))))
+		tmp1=tf.cast(M_t, tf.float32)
+		tmp2=(tf.matmul(tmp1, tf.cast(v[d], tf.float32)))
+		tmp3=tf.transpose(tmp2)
+		result+=tf.reduce_sum(tf.matmul(tf.cast(tmp3, tf.float32), v[d]))
+	return result
+
+def read_laplacian_matrix(sess, net, w, h,filename):
+	V=sess.run(net['input'])
+	v=[]
+	v.append(V[0,:,:,0].reshape([w*h,1]))
+	v.append(V[0,:,:,1].reshape([w*h,1]))
+	v.append(V[0,:,:,2].reshape([w*h,1]))
+	result=0.
+	print("Reading...")
+	M=np.genfromtxt(filename, delimiter=",", dtype=np.float32)
+	print("Reading finished...")
+	for d in range(3):
+		tmp1=tf.matmul(tf.cast(v[d].T, tf.float32), M)
+		result+=tf.reduce_sum(tf.matmul(tmp1, v[d]))
+	return result
+	
 	  
 def minimize_with_lbfgs(sess, net, optimizer, init_img):
   if args.verbose: print('\nMINIMIZING LOSS USING: L-BFGS OPTIMIZER')

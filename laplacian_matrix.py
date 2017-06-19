@@ -1,5 +1,6 @@
 import numpy as np
 
+
 def pad_zero(content_img):
 	return np.lib.pad(content_img, ((0,0),(1,1),(1,1),(0,0)), 'constant', constant_values=((0,0),(0,0),(0,0),(0,0)))
 
@@ -34,7 +35,8 @@ def D(i,j,width,height,content_img,mean,cov_matrix):
 	coli = int(i % width)
 	rowj = int(np.floor(j/width))
 	colj = int(j % width)
-
+	if rowi>=height or coli>=width or rowj>=height or colj>=width:
+		return 0
 	delta = 0
 	Wk_size = 9 
 	epsilon = 1
@@ -60,7 +62,6 @@ def laplacian_col(input_col, w, h, content_img, mean_matrix, cov_matrix):
 
 #h,w,d=img.shape
 #mean_matrix=build_mean(img)
-#cov_matrix=build_cov(img)
 
 #cv2.imshow("content image", img)
 #cv2.imshow("mean", mean_matrix/255)
